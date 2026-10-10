@@ -22,12 +22,15 @@ import (
 const (
 	extensionName = "cannon-ext-rss"
 	version       = "0.1.0"
-
+	extensionTitle       = "RSS Feed"
 	configTable   = "ext_rss_configuration"
 	configSection = "feed"
-
 	defaultRoutePath = "/rss"
 	feedEndpointID   = "feed"
+	extensionDescription = "Adds RSS Feed Support for Content"
+	extensionVersion     = "0.1.0"
+	updateURLBase        = "https://github.com/rob121/cannon-ext-rss/releases/download"
+	defaultAdminMenu     = "RSS Feed"
 )
 
 type categoryRow struct {
