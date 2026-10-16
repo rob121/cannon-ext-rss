@@ -1,0 +1,5 @@
+/bin/
+/cannon-ext-rss
+*.exe
+*.test
+*.out

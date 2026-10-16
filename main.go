@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -19,16 +20,26 @@ import (
 	"gorm.io/gorm"
 )
 
+//go:embed all:templates
+var templateFiles embed.FS
+
 const (
 	extensionName = "cannon-ext-rss"
-	version       = "0.1.0"
+	version       = "0.2.0"
 
 	configTable   = "ext_rss_configuration"
 	configSection = "feed"
 
 	defaultRoutePath = "/rss"
 	feedEndpointID   = "feed"
+	updateURLBase    = "https://github.com/rob121/cannon-ext-rss/releases/download"
 )
+
+type rssApp struct {
+	db        *gorm.DB
+	store     extension.ConfigurationStore
+	templates *extension.Templates
+}
 
 type categoryRow struct {
 	CategoryID uint   `gorm:"column:category_id"`
@@ -71,6 +82,7 @@ type feedConfig struct {
 	WebMaster               string
 	TTLMinutes              int
 	MaxItems                int
+	RemoteCacheMinutes      int
 	CategoryIDs             []uint
 	IncludeDescendants      bool
 	RequirePublicVisibility bool
@@ -95,21 +107,37 @@ func run() error {
 	if err := extension.MigrateConfigurationStore(db, configTable); err != nil {
 		return fmt.Errorf("migrate configuration: %w", err)
 	}
+	if err := migrateFeedCache(db); err != nil {
+		return fmt.Errorf("migrate feed cache: %w", err)
+	}
 
 	store := extension.DBConfigurationStore(db, configTable)
+	app := &rssApp{
+		db:        db,
+		store:     store,
+		templates: extension.NewTemplates(templateFiles, "templates"),
+	}
+
 	s := extension.New(extension.Info{
-		Name:        extensionName,
-		Title:       "RSS Feed",
-		Description: "Publishes selected Cannon content categories as an RSS or Atom feed.",
-		Version:     version,
+		Name:          extensionName,
+		Title:         "RSS Feed",
+		Description:   "Publishes selected Cannon content as RSS/Atom, and embeds remote feeds in template blocks with a configurable cache lifetime.",
+		Version:       version,
+		UpdateURLBase: updateURLBase,
 	})
+	s.EmbedTemplates(templateFiles, "templates")
 	s.OnConfiguration(extension.MapConfiguration(configurationDefinitions(), store))
 	s.OnInstall(func(req extension.WireRequest) error {
 		if err := extension.MigrateConfigurationStore(db, configTable); err != nil {
 			return err
 		}
+		if err := migrateFeedCache(db); err != nil {
+			return err
+		}
 		return ensureRSSRoute(db)
 	})
+	s.OnBlockList(app.blockDefinitions)
+	s.RegisterBlock(app.blockDefinition(), app.block)
 	s.RegisterEndpoint(extension.EndpointDefinition{
 		ID:    feedEndpointID,
 		Title: "RSS / Atom Feed",
@@ -163,6 +191,7 @@ func configurationDefinitions() []extension.ConfigurationDefinition {
     "webmaster": {"type": "string", "title": "Webmaster email"},
     "ttl_minutes": {"type": "integer", "title": "TTL minutes", "default": 60},
     "max_items": {"type": "integer", "title": "Maximum items", "default": 25},
+    "remote_cache_minutes": {"type": "integer", "title": "Remote feed cache minutes", "default": 60, "description": "Default lifetime for cached remote feed URLs used by the RSS block."},
     "include_descendants": {"type": "boolean", "title": "Include descendant categories", "default": true},
     "require_public_visibility": {"type": "boolean", "title": "Require public visibility", "default": true},
     "description_source": {"type": "string", "title": "Description source", "enum": ["intro", "meta", "body", "intro_body"], "default": "intro_body"},
@@ -198,6 +227,7 @@ func configurationDefinitions() []extension.ConfigurationDefinition {
     {"type": "Control", "scope": "#/properties/webmaster"},
     {"type": "Control", "scope": "#/properties/ttl_minutes"},
     {"type": "Control", "scope": "#/properties/max_items"},
+    {"type": "Control", "scope": "#/properties/remote_cache_minutes"},
     {"type": "Control", "scope": "#/properties/sort"},
     {"type": "Control", "scope": "#/properties/description_source"},
     {"type": "Control", "scope": "#/properties/description_limit"},
@@ -248,6 +278,7 @@ func configFromMap(data map[string]any) feedConfig {
 		WebMaster:               strings.TrimSpace(stringValue(data, "webmaster")),
 		TTLMinutes:              intDefault(data, "ttl_minutes", 60),
 		MaxItems:                intDefault(data, "max_items", 25),
+		RemoteCacheMinutes:      intDefault(data, "remote_cache_minutes", defaultCacheMinutes),
 		IncludeDescendants:      boolDefault(data, "include_descendants", true),
 		RequirePublicVisibility: boolDefault(data, "require_public_visibility", true),
 		DescriptionSource:       stringDefault(data, "description_source", "intro_body"),
@@ -271,6 +302,7 @@ func configFromMap(data map[string]any) feedConfig {
 	if cfg.MaxItems > 500 {
 		cfg.MaxItems = 500
 	}
+	cfg.RemoteCacheMinutes = normalizeCacheMinutes(cfg.RemoteCacheMinutes)
 	if cfg.DescriptionLimit <= 0 {
 		cfg.DescriptionLimit = 512
 	}

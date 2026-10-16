@@ -1,0 +1,22 @@
+<section class="rss-block" data-rss-block="{{.BlockItem}}" data-rss-space="{{.Space}}" data-rss-cache-minutes="{{.CacheMinutes}}">
+  {{if .Title}}
+  <h2 class="rss-block-title">{{.Title}}</h2>
+  {{end}}
+  <ul class="rss-block-list">
+    {{range .Items}}
+    <li class="rss-block-item">
+      {{if .Link}}
+      <a class="rss-block-link" href="{{.Link}}" rel="noopener noreferrer" target="_blank">{{.Title}}</a>
+      {{else}}
+      <span class="rss-block-link">{{.Title}}</span>
+      {{end}}
+      {{if .PubDate}}
+      <time class="rss-block-date">{{.PubDate}}</time>
+      {{end}}
+      {{if and $.ShowDescription .Description}}
+      <p class="rss-block-description">{{.Description}}</p>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+</section>
