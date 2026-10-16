@@ -24,15 +24,17 @@ import (
 var templateFiles embed.FS
 
 const (
-	extensionName = "cannon-ext-rss"
-	version       = "0.2.0"
+	extensionName        = "cannon-ext-rss"
+	extensionTitle       = "RSS Feed"
+	extensionDescription = "Publishes selected Cannon content as RSS/Atom, and embeds remote feeds in template blocks with a configurable cache lifetime."
+	extensionVersion     = "0.3.0"
+	updateURLBase        = "https://github.com/rob121/cannon-ext-rss/releases/download"
+	defaultAdminMenu     = "RSS Feed"
 
-	configTable   = "ext_rss_configuration"
-	configSection = "feed"
-
+	configTable      = "ext_rss_configuration"
+	configSection    = "feed"
 	defaultRoutePath = "/rss"
 	feedEndpointID   = "feed"
-	updateURLBase    = "https://github.com/rob121/cannon-ext-rss/releases/download"
 )
 
 type rssApp struct {
@@ -120,10 +122,11 @@ func run() error {
 
 	s := extension.New(extension.Info{
 		Name:          extensionName,
-		Title:         "RSS Feed",
-		Description:   "Publishes selected Cannon content as RSS/Atom, and embeds remote feeds in template blocks with a configurable cache lifetime.",
-		Version:       version,
+		Title:         extensionTitle,
+		Description:   extensionDescription,
+		Version:       extensionVersion,
 		UpdateURLBase: updateURLBase,
+		AdminMenuName: defaultAdminMenu,
 	})
 	s.EmbedTemplates(templateFiles, "templates")
 	s.OnConfiguration(extension.MapConfiguration(configurationDefinitions(), store))

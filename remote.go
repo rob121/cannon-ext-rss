@@ -176,7 +176,7 @@ func defaultFetchFeedBody(feedURL string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "cannon-ext-rss/"+version)
+	req.Header.Set("User-Agent", "cannon-ext-rss/"+extensionVersion)
 	req.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, */*")
 	resp, err := client.Do(req)
 	if err != nil {
