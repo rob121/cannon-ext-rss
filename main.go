@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -101,7 +102,21 @@ func main() {
 	}
 }
 
+func extensionInfo() extension.Info {
+	return extension.Info{
+		Name:          extensionName,
+		Title:         extensionTitle,
+		Description:   extensionDescription,
+		Version:       extensionVersion,
+		UpdateURLBase: updateURLBase,
+		AdminMenuName: defaultAdminMenu,
+	}
+}
+
 func run() error {
+	if handled, err := extension.WriteDataArg(extensionInfo(), os.Args, os.Stdout); handled {
+		return err
+	}
 	db, site, err := extension.OpenDB()
 	if err != nil {
 		return err
@@ -120,14 +135,7 @@ func run() error {
 		templates: extension.NewTemplates(templateFiles, "templates"),
 	}
 
-	s := extension.New(extension.Info{
-		Name:          extensionName,
-		Title:         extensionTitle,
-		Description:   extensionDescription,
-		Version:       extensionVersion,
-		UpdateURLBase: updateURLBase,
-		AdminMenuName: defaultAdminMenu,
-	})
+	s := extension.New(extensionInfo())
 	s.EmbedTemplates(templateFiles, "templates")
 	s.OnConfiguration(extension.MapConfiguration(configurationDefinitions(), store))
 	s.OnInstall(func(req extension.WireRequest) error {
